@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8">
+  <title>Experiência Narrativa com A-Frame</title>
+  <meta name="description" content="Experiência Narrativa em 360º com A-Frame">
+  <!-- Inclui a biblioteca A-Frame -->
+  <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+  <!-- Componentes adicionais -->
+  <script src="https://cdn.jsdelivr.net/npm/aframe-animation-component@6.0.0/dist/aframe-animation-component.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/aframe-event-set-component@5.0.1/dist/aframe-event-set-component.min.js"></script>
+  <style>
+    #loading-screen {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body>
+  <!-- Tela de carregamento -->
+  <div id="loading-screen">Carregando...</div>
+
+  <a-scene>
+    <!-- Assets -->
+    <a-assets id="assets">
+      <video id="start-image" src="data/1-sé.mp4" autoplay="false" loop="true" crossorigin="anonymous" playsinline="true"></video>
+      <img id="start-button-image" src="data/start-button.png">
+      <!-- Vídeo 360 para a primeira cena -->
+      <video id="video0" src="data/1-sé.mp4" autoplay="false" loop="true" crossorigin="anonymous" playsinline="true"></video>
+      <video id="video1" src="data/2-prefeitura.mp4" autoplay="false" loop="true" crossorigin="anonymous" playsinline="true"></video>
+      <video id="video2" src="data/3-anhangabau.mp4" autoplay="false" loop="true" crossorigin="anonymous" playsinline="true"></video>
+      <!-- Áudios -->
+      <audio id="audio0" src="data/1-sé.mp3" preload="auto"></audio>
+      <audio id="audio1" src="data/2-prefeitura.mp3" preload="auto"></audio>
+      <audio id="audio2" src="data/3-anhangabau.mp3" preload="auto"></audio>
+
+    </a-assets>
+
+    <!-- Cena inicial -->
+    <a-entity id="scene-start" visible="true">
+      <a-sky src="#start-image" material="shader: flat;"></a-sky>
+
+      <!-- Botão "COMEÇAR" com interação por gaze -->
+      <a-entity id="start-button"
+                geometry="primitive: plane; height: 1; width: 2"
+                material="shader: flat; src: #start-button-image; transparent: true"
+                position="0 -1 -3"
+                event-set__enter="_event: mouseenter; scale: 1.2 1.2 1"
+                event-set__leave="_event: mouseleave; scale: 1 1 1"
+                gaze-listener>
+      </a-entity>
+    </a-entity>
+
+    <!-- Cenas da experiência -->
+    <a-entity id="scene0" visible="false">
+      <!-- Vídeo substituindo a imagem na cena 0 -->
+      <a-sky src="#video0" material="shader: flat;"></a-sky>
+    </a-entity>
+    <a-entity id="scene1" visible="false">
+      <a-sky src="#video1" material="shader: flat;"></a-sky>
+    </a-entity>
+    <a-entity id="scene2" visible="false">
+      <a-sky src="#video2" material="shader: flat;"></a-sky>
+    </a-entity>
+    
+    <!-- Cursor para interação por gaze -->
+    <a-entity camera look-controls="pointerLockEnabled: true" wasd-controls>
+      <a-entity cursor="fuse: true; fuseTimeout: 2000"
+                position="0 0 -1"
+                geometry="primitive: ring; radiusInner: 0.02; radiusOuter: 0.03"
+                material="color: white; shader: flat">
+      </a-entity>
+    </a-entity>
+
+    <!-- Scripts -->
+    <script>
+      // Componentes personalizados
+      AFRAME.registerComponent('gaze-listener', {
+        init: function () {
+          this.el.addEventListener('click', function () {
+            startExperience();
+          });
+        }
+      });
+
+      // Variáveis globais
+      var sceneEl = document.querySelector('a-scene');
+      var loadingScreen = document.getElementById('loading-screen');
+      var assetsLoaded = false;
+      var currentSceneIndex = -1;
+      var sceneStartEl = document.querySelector('#scene-start');
+      var sceneEls = [
+        document.querySelector('#scene0'),
+        document.querySelector('#scene1'),
+        document.querySelector('#scene2'),
+      ];
+      var mediaList = [
+        {audio: '#audio0', video: '#video0'},
+        {audio: '#audio1', video: '#video1'},
+        {audio: '#audio2', video: '#video2'},
+      ];
+
+      // Verifica se todos os assets foram carregados
+      document.querySelector('#assets').addEventListener('loaded', function() {
+        assetsLoaded = true;
+        hideLoadingScreen();
+      });
+
+      // Função para esconder a tela de carregamento
+      function hideLoadingScreen() {
+        if (assetsLoaded) {
+          loadingScreen.style.display = 'none';
+        }
+      }
+
+      // Função para iniciar a experiência
+      function startExperience() {
+        var startButtonEl = document.querySelector('#start-button');
+        if (startButtonEl) {
+          startButtonEl.parentNode.removeChild(startButtonEl);
+        }
+
+        // Esconder a cena inicial
+        sceneStartEl.setAttribute('visible', 'false');
+
+        // Iniciar a sequência
+        showMedia(0);
+      }
+
+      // Função para mostrar a mídia atual
+      function showMedia(index) {
+        if (index >= mediaList.length) {
+          // Fim da sequência
+          resetToStart();
+          return;
+        }
+
+        // Esconder a cena atual, se houver
+        if (currentSceneIndex >= 0) {
+          sceneEls[currentSceneIndex].setAttribute('visible', 'false');
+        }
+
+        // Mostrar a nova cena
+        currentSceneIndex = index;
+        var currentSceneEl = sceneEls[currentSceneIndex];
+        currentSceneEl.setAttribute('visible', 'true');
+
+        var audioEl = document.querySelector(mediaList[index].audio);
+        var videoEl = mediaList[index].video ? document.querySelector(mediaList[index].video) : null;
+
+        function playMedia() {
+          var duration = audioEl.duration * 1000; // Em milissegundos
+          var fadeOutTime = Math.max(duration - 1000, 0);
+
+          audioEl.play();
+          if (videoEl) {
+            videoEl.currentTime = 0; // Reinicia o vídeo
+            videoEl.play(); // Reproduz o vídeo
+          }
+
+          // Iniciar próxima mídia após o término do áudio
+          audioEl.onended = function() {
+            if (videoEl) {
+              videoEl.pause(); // Pausa o vídeo ao final do áudio
+            }
+            showMedia(index + 1);
+          };
+
+          // Caso o áudio não tenha duração definida
+          if (isNaN(duration)) {
+            // Definir um tempo padrão ou esperar um evento específico
+            setTimeout(function() {
+              showMedia(index + 1);
+            }, 5000); // Por exemplo, 5 segundos
+          }
+        }
+
+        if (audioEl.readyState >= 2) {
+          playMedia();
+        } else {
+          audioEl.oncanplaythrough = playMedia;
+        }
+      }
+
+      // Função para resetar a experiência
+      function resetToStart() {
+        // Esconder a cena atual
+        if (currentSceneIndex >= 0) {
+          sceneEls[currentSceneIndex].setAttribute('visible', 'false');
+          currentSceneIndex = -1;
+        }
+
+        // Mostrar a cena inicial
+        sceneStartEl.setAttribute('visible', 'true');
+
+        createStartButton();
+      }
+
+      // Função para criar o botão "COMEÇAR"
+      function createStartButton() {
+        var startButtonEl = document.createElement('a-entity');
+        startButtonEl.setAttribute('id', 'start-button');
+        startButtonEl.setAttribute('geometry', 'primitive: plane; height: 1; width: 2');
+        startButtonEl.setAttribute('material', 'shader: flat; src: #start-button-image; transparent: true');
+        startButtonEl.setAttribute('position', '0 -1 -3');
+        startButtonEl.setAttribute('event-set__enter', '_event: mouseenter; scale: 1.2 1.2 1');
+        startButtonEl.setAttribute('event-set__leave', '_event: mouseleave; scale: 1 1 1');
+        startButtonEl.setAttribute('gaze-listener', '');
+        sceneStartEl.appendChild(startButtonEl);
+      }
+    </script>
+  </a-scene>
+</body>
+</html>
